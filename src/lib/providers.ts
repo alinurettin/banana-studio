@@ -23,7 +23,9 @@ export const MODEL_ROUTES: Record<string, readonly AIProvider[]> = {
   'seedance-2.5': ['evolink', 'fal', 'openrouter'],
   'minimax-h3': ['fal'],
 };
-const LOCAL_SETUP = 'Start ComfyUI and set COMFYUI_URL (for example http://127.0.0.1:8188) in Provider keys to use the local model.';
+// COMFYUI_URL is read from the server environment; the native Provider keys
+// dialogs have no field for it yet, so this message must not send users there.
+const LOCAL_SETUP = 'Start ComfyUI and set COMFYUI_URL (for example http://127.0.0.1:8188) in the server environment to use the local model. It is an address, not a provider key; the desktop Provider keys dialogs do not list it yet.';
 export type ProviderAvailability = Partial<Record<AIProvider, boolean>>;
 export function resolveProvider(model: string, choice: unknown, available: ProviderAvailability): AIProvider {
   const routes = MODEL_ROUTES[model];

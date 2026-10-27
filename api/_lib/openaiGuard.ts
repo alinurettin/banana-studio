@@ -99,9 +99,12 @@ const ledgerTicket = (db: NonNullable<ReturnType<typeof createServiceRoleClient>
   };
 };
 
+/** The providers public.start_provider_request admits; OpenAI has its own entry point. */
+export type LedgerProvider = Extract<AIProvider, 'openrouter' | 'gemini' | 'fal' | 'evolink'>;
+
 /** fal.ai, Gemini, EvoLink and OpenRouter video share the OpenAI ledger's
  * per-user and workspace budgets; video also has its own lower daily cap. */
-export async function startProviderRequest(req: VercelRequest, res: VercelResponse, user: AuthenticatedUser, kind: 'image' | 'text' | 'video', provider: AIProvider) {
+export async function startProviderRequest(req: VercelRequest, res: VercelResponse, user: AuthenticatedUser, kind: 'image' | 'text' | 'video', provider: LedgerProvider) {
   const label = PROVIDER_LABELS[provider];
   const session = getOpenAISessionId(req);
   if (!session) {

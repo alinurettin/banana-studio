@@ -13,6 +13,10 @@ export async function startOpenAIRequest(req,res,user,kind,generationId) {
 export async function startProviderRequest(req,res,user,kind) {
   if(!req[LOCAL_AUTH]){res.status(401).json({error:'Native session required.'});return null;}
   const id=randomUUID(),store=getWorkspace();store.workerRpc('start_openai_request',{p_id:id,p_kind:kind});
-  let finished=false;const finish=async(outcome,providerRequestId,providerStatus)=>{if(finished)return;store.workerRpc('finish_openai_request',{p_id:id,p_outcome:outcome,p_provider_request_id:providerRequestId,p_provider_status:providerStatus});finished=true;};
+  // Recording runs after the provider answered: a store error is logged, never
+  // allowed to replace that response or turn a sent request into a retry.
+  let finished=false;const finish=async(outcome,providerRequestId,providerStatus)=>{if(finished)return;finished=true;
+    try{store.workerRpc('finish_openai_request',{p_id:id,p_outcome:outcome,p_provider_request_id:providerRequestId,p_provider_status:providerStatus});}
+    catch(error){console.warn(`[provider-request] id=${id} stage=ledger_unconfirmed ${error?.name||'Error'}`);}};
   return {id,finish,async track(request){try{const response=await request;await finish(response.ok?'completed':'failed',null,response.status);return response;}catch(error){await finish('failed');throw error;}}};
 }

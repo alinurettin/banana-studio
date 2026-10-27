@@ -229,18 +229,18 @@ const AuthorizedWorkspace: React.FC<{
     videoPromptExpansionMode: 'balanced',
   });
 
-  // Without a key for the selected image model, a workspace with ComfyUI
-  // starts on the free local model. Re-checked when keys may have changed.
+  // Without a key for the default image model, a workspace with ComfyUI starts
+  // on the free local model. Checked once per sign-in, and only while the draft
+  // still has the untouched default, so a model the user chose is never replaced.
   useEffect(() => {
     if (!isAuthenticated) return;
     const controller = new AbortController();
-    const check = () => getProviderAvailability(controller.signal).then(available => setConfig(current => {
+    getProviderAvailability(controller.signal).then(available => setConfig(current => {
+      if (current.imageModel !== DEFAULT_IMAGE_MODEL) return current;
       const imageModel = startingImageModel(current.imageModel, available) as GenerationConfig['imageModel'];
       return imageModel === current.imageModel ? current : { ...current, imageModel };
     })).catch(() => {});
-    check();
-    window.addEventListener('focus', check);
-    return () => { controller.abort(); window.removeEventListener('focus', check); };
+    return () => controller.abort();
   }, [isAuthenticated]);
 
 

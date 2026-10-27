@@ -1511,6 +1511,8 @@ export const Controls: React.FC<ControlsProps> = ({
         setGenerationError(error instanceof Error ? error.message : 'Check the attached references.');
         return;
       }
+      // Shortcuts call this directly; references a local model cannot fit never queue.
+      if (localReferenceFit?.error) { setGenerationError(localReferenceFit.error); return; }
     }
     if (config.mode === 'video' && config.videoModel === 'seedance-2.5' && !config.referenceVideos?.some(video => video.isContinuation)) {
       const error = getSeedanceFrameError(config.referenceImages, config.referenceVideos?.length || 0, config.referenceAudios?.length || 0, config.videoOperation);
@@ -1905,7 +1907,7 @@ export const Controls: React.FC<ControlsProps> = ({
   const brainstormCostPreview = getImageCostPreview({ ...config, imageProvider: providerRoute.provider }, brainstormImageCount, imageCostHistory);
   const canGenerate = !routeInputError && !isDraftLoading && (isVideoMode
     ? uploadingReferenceVideos === 0 && !hasStaleEnhancedPrompt && (isH3VideoConfig ? !h3InputError : config.prompt.trim().length > 0 && (!requiresSourceVideo || (config.referenceVideos?.length || 0) > 0))
-    : !isBrainstormActive && !sunburstError && !hasStaleEnhancedPrompt && (config.prompt.trim().length > 0 || (!isSunburst && config.referenceImages.length > 0)));
+    : !isBrainstormActive && !sunburstError && !localReferenceFit?.error && !hasStaleEnhancedPrompt && (config.prompt.trim().length > 0 || (!isSunburst && config.referenceImages.length > 0)));
   // While jobs run the button keeps its lime surface so another generation can be
   // queued, so busy-state labels must stay dark there and only turn light on the
   // disabled gray surface.

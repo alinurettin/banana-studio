@@ -17,7 +17,20 @@ export const comfyBaseUrl = (value: string): string => {
   return url.href.replace(/\/+$/, '');
 };
 
-const SECTION = /^[A-Z][A-Z0-9 &/-]{3,}(?: \([^\n)]*\))?$/;
+/** Section labels the shared prompt compiler emits (src/lib/images, src/lib/references,
+ * src/lib/youtube). Only these start a section, so a brief line in capitals such as
+ * "SUMMER SALE" stays part of the brief. tests/comfyui-image.test.mjs keeps this
+ * list in step with the compiler's sources. */
+export const COMPILER_SECTIONS: ReadonlySet<string> = new Set([
+  'ASSEMBLY CONTRACT', 'CREATIVE BRIEF', 'EDIT AREAS', 'EPISODE EDITORIAL FOCUS', 'EPISODE SUMMARY', 'IDENTITY SEPARATION',
+  'LOCAL IMAGE EDIT', 'MEDIUM AND IDENTITY', 'OUTPUT SETTINGS', 'REFERENCE ROLES', 'REFERENCE USE', 'REFERENCE-BASED GENERATION',
+  'REQUESTED EDIT', 'REQUIRED YOUTUBE CAMERA GAZE', 'REQUIRED YOUTUBE PERSON WARDROBE', 'SOURCE PRESERVATION', 'THUMBNAIL SCOPE',
+  'THUMBNAIL STYLE EXAMPLES', 'USER EDIT SCOPE', 'YOUTUBE THUMBNAIL DIRECTION', 'YOUTUBE THUMBNAILS',
+]);
+const sectionName = (line: string): string | undefined => {
+  const name = line.trim().replace(/ \([^\n)]*\)$/, '');
+  return COMPILER_SECTIONS.has(name) ? name : undefined;
+};
 /** The shared prompt compiler wraps the user's brief in ~3,000 characters of
  * instructions written for hosted models (reference rules, YouTube direction,
  * wardrobe and preservation policy). A local text encoder conditions on all of
@@ -26,9 +39,13 @@ const SECTION = /^[A-Z][A-Z0-9 &/-]{3,}(?: \([^\n)]*\))?$/;
  * is enforced by the mask, not by prose. */
 export const comfyPrompt = (prompt: string): string => {
   const sections = new Map<string, string[]>();
-  let current = '';
+  let current = '', previous = '';
   for (const line of prompt.split('\n')) {
-    if (SECTION.test(line.trim())) { current = line.trim().replace(/ \(.*\)$/, ''); sections.set(current, sections.get(current) || []); }
+    const name = sectionName(line);
+    // A Brainstorm concept carries the camera-gaze block inside its brief; its
+    // END line returns to the brief so the source brief after it is kept.
+    if (current && line.trim() === `END ${current}`) current = previous;
+    else if (name) { previous = current; current = name; sections.set(current, sections.get(current) || []); }
     else sections.set(current, [...sections.get(current) || [], line]);
   }
   const brief = (sections.get('CREATIVE BRIEF') || sections.get('REQUESTED EDIT'))?.join('\n').trim();

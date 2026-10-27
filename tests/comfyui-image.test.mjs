@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { comfyBaseUrl, comfyCanvas, comfyEditCrop, comfyFailureMessage, comfyFlux3Graph, comfyGraph, comfyPrompt } from '../api/_lib/comfyuiImage.ts';
+import { comfyBaseUrl, comfyCanvas, comfyEditCrop, comfyFailureMessage, comfyFlux3Graph, comfyGraph, comfyPrompt, COMPILER_SECTIONS } from '../api/_lib/comfyuiImage.ts';
 import { MODEL_ROUTES, resolveProvider, startingImageModel } from '../src/lib/providers.ts';
 
 test('local canvas keeps the requested shape at the resolution budget in multiples of 16',()=>{
@@ -79,6 +79,27 @@ test('section labels reach ComfyUI as plain text, never as words to paint',()=>{
   assert.equal(comfyPrompt('REFERENCE ROLES (attachment order)\nImage 1: style\n\nREQUESTED EDIT\nMake it blue\n\nSOURCE PRESERVATION\nKeep the face'),'Make it blue');
   // Quoted copy, inline capitals and a lone capitalised line are the user's words.
   for(const prompt of ['A neon sign that says "OPEN"','Make the TEXT bigger','OPEN'])assert.equal(comfyPrompt(prompt),prompt);
+  // Capitalised lines inside the brief are copy to render, not section labels.
+  assert.equal(comfyPrompt('CREATIVE BRIEF\nPoster with text:\nSUMMER SALE\n50% OFF'),'Poster with text:\nSUMMER SALE\n50% OFF');
+  assert.equal(comfyPrompt('REQUESTED EDIT\nReplace the sign with:\nGRAND OPENING (TODAY)\n\nSOURCE PRESERVATION\nKeep the face'),'Replace the sign with:\nGRAND OPENING (TODAY)');
+});
+
+test('a Brainstorm concept keeps its source brief but not the camera-gaze policy block',async()=>{
+  const {build}=await import('esbuild');const {fileURLToPath}=await import('node:url');
+  const out=await build({entryPoints:[fileURLToPath(new URL('../src/lib/youtube/youtubeCameraGaze.ts',import.meta.url))],bundle:true,write:false,format:'esm',platform:'node'});
+  const {YOUTUBE_CAMERA_GAZE_RULE}=await import('data:text/javascript;base64,'+Buffer.from(out.outputFiles[0].text).toString('base64'));
+  const local=comfyPrompt(`CREATIVE BRIEF\nHost laughing at a giant cake\n\n${YOUTUBE_CAMERA_GAZE_RULE}\n\nSOURCE BRIEF — REQUIRED CONSTRAINTS\nText: "BAKE OFF"`);
+  assert.ok(local.startsWith('Host laughing at a giant cake\n'),local);
+  assert.ok(local.endsWith('\nSOURCE BRIEF — REQUIRED CONSTRAINTS\nText: "BAKE OFF"'),local);
+  assert.ok(!/CAMERA GAZE|eye contact/.test(local),local);
+});
+
+test('every local section label is a heading the shared prompt compiler emits',async()=>{
+  const {readFile,readdir}=await import('node:fs/promises');
+  let source='';
+  for(const dir of ['src/lib/images','src/lib/references','src/lib/youtube'])for(const name of await readdir(dir))if(name.endsWith('.ts'))source+=(await readFile(`${dir}/${name}`,'utf8')).replace(/\r\n/g,'\n')+'\n';
+  // A heading is a whole line of a template or a joined string: 'LOCAL IMAGE EDIT', `EDIT AREAS\n…`.
+  for(const label of COMPILER_SECTIONS)assert.ok(source.includes(`'${label}'`)||['\n','\\n',"'",'`'].some(before=>['\n','\\n',' ('].some(after=>source.includes(before+label+after))),label);
 });
 
 test('local failures explain the ComfyUI fix and never mention provider billing',()=>{

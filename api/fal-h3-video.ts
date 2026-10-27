@@ -185,8 +185,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const ticket = await startProviderRequest(req, res, user, 'video', 'fal');
       if (!ticket) {
         // No provider request was sent, so the saved video can be submitted later.
-        if (galleryClaim) await registry.from('generations').update({ status: 'pending', metadata: { ...galleryClaim.metadata, h3SubmissionStartedAt: null } })
-          .eq('id', galleryClaim.id).eq('user_id', user.id).eq('status', 'processing');
+        // The refusal is already answered; a failed release only needs a log line,
+        // because the card then stays claimed and blocks a duplicate submission.
+        if (galleryClaim) {
+          try {
+            const { error } = await registry.from('generations').update({ status: 'pending', metadata: { ...galleryClaim.metadata, h3SubmissionStartedAt: null } })
+              .eq('id', galleryClaim.id).eq('user_id', user.id).eq('status', 'processing');
+            if (error) console.warn(`[fal-h3-video] generation=${galleryClaim.id} stage=claim_release_failed`);
+          } catch { console.warn(`[fal-h3-video] generation=${galleryClaim.id} stage=claim_release_failed`); }
+        }
         return;
       }
       const response = await ticket.track(fetch(`${FAL_QUEUE_BASE}/${endpoint}`, {
